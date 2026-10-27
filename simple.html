@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карточка по шаблону</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#000;color:#fff;font:14px/1.5 "JetBrains Mono",Consolas,"Courier New","Liberation Mono",monospace}
+.w{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:16px;padding:16px;align-items:start}
+@media(max-width:800px){.w{grid-template-columns:1fr}}
+label{display:block;color:#8a8a8a;font-size:12px;margin:10px 0 2px}
+input,button{font:inherit;color:#fff;background:#000;border:1px solid #2a2a2a;border-radius:4px;padding:6px 10px;width:100%}
+input:focus,button:hover,button:focus-visible{border-color:#9a9a9a;outline:none}
+.b{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}.b button{width:auto;cursor:pointer;flex:1 1 auto}
+#p{margin:0;border:1px solid #2a2a2a;padding:20px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:200px;font:15pt/1.45 Consolas,"Courier New","Liberation Mono",monospace}
+.n{color:#8a8a8a;font-size:12px;margin:12px 0 0}
+#t{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;border:1px solid #777;padding:8px 14px;border-radius:4px;opacity:0;pointer-events:none;max-width:92vw}
+#t.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="w">
+  <section>
+    <div id="f"></div>
+    <div class="b">
+      <button id="c">Копировать</button>
+      <button id="h">Скачать HTML</button>
+      <button id="d">Скачать PDF</button>
+    </div>
+    <p class="n">Данные остаются в вашем браузере и никуда не отправляются. Не вносите данные других людей без их согласия.</p>
+  </section>
+  <pre id="p" aria-live="polite"></pre>
+</div>
+<div id="t" role="status"></div>
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s),FONT='Consolas,"Courier New","Liberation Mono",monospace';
+const L=['ФИО','ДАТА РОЖДЕНИЯ','НОМЕР ТЕЛЕФОНА','АДРЕС','ИНН','ПАСПОРТ','СНИЛС','ПОЧТА'],V={};
+const text=()=>L.filter(l=>(V[l]||'').trim()).map(l=>l+': '+V[l]).join('\n\n');
+let tt;const toast=m=>{const e=$('#t');e.textContent=m;e.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('on'),2500)};
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function dl(b,n){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}
+function draw(){$('#p').textContent=text()||'Заполните поля слева'}
+L.forEach((l,i)=>{const lb=document.createElement('label'),inp=document.createElement('input');lb.textContent=l;inp.type='text';inp.id='i'+i;lb.htmlFor=inp.id;inp.autocomplete='off';
+ inp.addEventListener('input',()=>{V[l]=inp.value;draw()});$('#f').append(lb,inp)});
+draw();
+
+$('#c').onclick=async()=>{const t=text();if(!t)return toast('Карточка пуста');
+ try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();const ok=document.execCommand('copy');a.remove();if(!ok)return toast('Не удалось скопировать')}
+ toast('Текст скопирован')};
+
+$('#h').onclick=()=>{const t=text();if(!t)return toast('Карточка пуста');
+ dl(new Blob([`<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Карточка</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0;background:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}pre{margin:0;min-height:100vh;padding:20mm 10mm 20mm 20mm;color:#fff;font:15pt/1.45 ${FONT};white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><pre>${esc(t)}</pre></body></html>`],{type:'text/html;charset=utf-8'}),'karta.html');toast('HTML скачан')};
+
+function mk(jpg,W,H,pw,ph){const enc=new TextEncoder(),parts=[],off=[];let len=0;
+ const add=b=>{if(typeof b==='string')b=enc.encode(b);parts.push(b);len+=b.length};
+ const obj=(n,s)=>{off[n]=len;add(n+' 0 obj\n'+s+'\nendobj\n')};
+ add('%PDF-1.4\n');obj(1,'<</Type/Catalog/Pages 2 0 R>>');obj(2,'<</Type/Pages/Kids[3 0 R]/Count 1>>');
+ obj(3,`<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${pw} ${ph}]/Resources<</XObject<</I 5 0 R>>>>/Contents 4 0 R>>`);
+ const cs=`q ${pw} 0 0 ${ph} 0 0 cm /I Do Q`;obj(4,`<</Length ${cs.length}>>\nstream\n${cs}\nendstream`);
+ off[5]=len;add(`5 0 obj\n<</Type/XObject/Subtype/Image/Width ${W}/Height ${H}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${jpg.length}>>\nstream\n`);add(jpg);add('\nendstream\nendobj\n');
+ const xr=len;let t='xref\n0 6\n0000000000 65535 f \n';for(let i=1;i<=5;i++)t+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+ add(t+`trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n${xr}\n%%EOF`);return new Blob(parts,{type:'application/pdf'})}
+
+$('#d').onclick=async()=>{const t=text();if(!t)return toast('Карточка пуста');
+ try{const k=72/25.4,pw=297*k,fs=15,lh=fs*1.45,pl=20*k,pt=20*k,mw=(pw-pl-10*k)*3,F=`${fs*3}px ${FONT}`;
+  const c=document.createElement('canvas'),x=c.getContext('2d'),R=[];x.font=F;const W=s=>x.measureText(s).width;
+  for(const p of t.split('\n')){let s='';for(const w of p.split(' ')){const u=s?s+' '+w:w;if(W(u)<=mw){s=u;continue}
+   if(s)R.push(s);s=w;while(W(s)>mw&&s.length>1){let i=s.length-1;while(i>1&&W(s.slice(0,i))>mw)i--;R.push(s.slice(0,i));s=s.slice(i)}}R.push(s)}
+  const ph=Math.max(pt*2+R.length*lh,210*k);c.width=Math.round(pw*3);c.height=Math.round(ph*3);
+  x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.font=F;x.textBaseline='top';
+  R.forEach((s,i)=>x.fillText(s,pl*3,(pt+i*lh+(lh-fs)/2)*3));
+  const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.95));if(!b)throw new Error('нет изображения');
+  dl(mk(new Uint8Array(await b.arrayBuffer()),c.width,c.height,pw.toFixed(2),ph.toFixed(2)),'karta.pdf');toast('PDF скачан')}catch(e){toast('Ошибка PDF: '+e.message)}};
+})();
+</script>
+</body>
+</html>
